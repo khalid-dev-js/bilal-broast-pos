@@ -43,18 +43,18 @@ const paymentOptions = [
 ]
 
 const baseProducts = [
-  { name: 'Zinger Burger', price: 550, image: imageUrl, category: 'Burgers', description: 'Crispy chicken fillet with fresh lettuce and sauce.' },
-  { name: 'Nashville Fries', price: 150, image: imageUrl, category: 'Fries', description: 'Crispy seasoned fries with a crunchy golden finish.' },
-  { name: 'Cheese Broast 2pc', price: 900, image: imageUrl, category: 'Chicken', description: 'Two pieces of crispy broast with a cheesy crunch.' },
-  { name: 'Regular Broast 2pc', price: 900, image: imageUrl, category: 'Chicken', description: 'Classic pair of broast with signature spices.' },
-  { name: 'Chicken Burger', price: 450, image: imageUrl, category: 'Burgers', description: 'Juicy chicken burger with grilled flavor.' },
-  { name: 'Chicken Breast 1pc', price: 150, image: imageUrl, category: 'Chicken', description: 'Single tender chicken breast serving.' },
-  { name: 'Regular Broast 4pc', price: 900, image: imageUrl, category: 'Chicken', description: 'Family-size broast pack for sharing.' },
-  { name: 'Masala Fries', price: 150, image: imageUrl, category: 'Fries', description: 'Golden fries tossed with masala seasoning.' },
-  { name: 'Chicken Breast 2pc', price: 900, image: imageUrl, category: 'Chicken', description: 'Double portion of crispy chicken breast.' },
-  { name: 'Zinger Rage 2pc', price: 900, image: imageUrl, category: 'Deals', description: 'Double zinger combo with a signature meal feel.' },
-  { name: 'Family Broast Meal', price: 900, image: imageUrl, category: 'Deals', description: 'Family meal with broast and drinks.' },
-  { name: 'Pepsi Can', price: 100, image: imageUrl, category: 'Drinks', description: 'Chilled Pepsi can served cold.' },
+  { name: 'Zinger Burger', price: 550, posPrice: 550, image: imageUrl, category: 'Burgers', description: 'Crispy chicken fillet with fresh lettuce and sauce.' },
+  { name: 'Nashville Fries', price: 150, posPrice: 150, image: imageUrl, category: 'Fries', description: 'Crispy seasoned fries with a crunchy golden finish.' },
+  { name: 'Cheese Broast 2pc', price: 900, posPrice: 900, image: imageUrl, category: 'Chicken', description: 'Two pieces of crispy broast with a cheesy crunch.' },
+  { name: 'Regular Broast 2pc', price: 900, posPrice: 900, image: imageUrl, category: 'Chicken', description: 'Classic pair of broast with signature spices.' },
+  { name: 'Chicken Burger', price: 450, posPrice: 450, image: imageUrl, category: 'Burgers', description: 'Juicy chicken burger with grilled flavor.' },
+  { name: 'Chicken Breast 1pc', price: 150, posPrice: 150, image: imageUrl, category: 'Chicken', description: 'Single tender chicken breast serving.' },
+  { name: 'Regular Broast 4pc', price: 900, posPrice: 900, image: imageUrl, category: 'Chicken', description: 'Family-size broast pack for sharing.' },
+  { name: 'Masala Fries', price: 150, posPrice: 150, image: imageUrl, category: 'Fries', description: 'Golden fries tossed with masala seasoning.' },
+  { name: 'Chicken Breast 2pc', price: 900, posPrice: 900, image: imageUrl, category: 'Chicken', description: 'Double portion of crispy chicken breast.' },
+  { name: 'Zinger Rage 2pc', price: 900, posPrice: 900, image: imageUrl, category: 'Deals', description: 'Double zinger combo with a signature meal feel.' },
+  { name: 'Family Broast Meal', price: 900, posPrice: 900, image: imageUrl, category: 'Deals', description: 'Family meal with broast and drinks.' },
+  { name: 'Pepsi Can', price: 100, posPrice: 100, image: imageUrl, category: 'Drinks', description: 'Chilled Pepsi can served cold.' },
 ]
 
 type Product = {
@@ -62,6 +62,8 @@ type Product = {
   slug?: string
   name: string
   price: number
+  posPrice?: number
+  websitePrice?: number
   image: string
   category: string
   description?: string
@@ -107,11 +109,16 @@ type ReceiptSlip = {
 }
 
 function normalizeBackendProduct(item: any): Product {
+  const websitePrice = Number(item?.websitePrice ?? item?.price ?? 0)
+  const posPrice = Number(item?.posPrice ?? websitePrice)
+
   return {
     id: item?._id ? String(item._id) : undefined,
     slug: item?.slug || undefined,
     name: item?.name || 'Unnamed product',
-    price: Number(item?.price ?? 0),
+    price: posPrice,
+    posPrice,
+    websitePrice,
     image: item?.image || item?.category?.image || imageUrl,
     category: item?.category?.name || 'General',
     description: item?.description || 'Freshly prepared item from Bilal Broast.',
@@ -1050,9 +1057,22 @@ function HomeView({
                   >
                     {product.name}
                   </div>
+
+                  <p
+                    className="text-xs leading-5 text-slate-600"
+                    style={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {product.description || 'Freshly prepared item.'}
+                  </p>
+
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">{product.category}</span>
-                    <span className="text-base font-bold text-[#2c7d34]">Rs. {product.price.toLocaleString()}</span>
+                    <span className="text-base font-bold text-[#2c7d34]">Rs. {(product.posPrice ?? product.price).toLocaleString()}</span>
                   </div>
                 </div>
               </button>
