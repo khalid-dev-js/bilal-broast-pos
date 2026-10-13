@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import Image from 'next/image'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   Bell,
@@ -25,6 +26,7 @@ import {
 } from 'lucide-react'
 
 const imageUrl = 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-PjAPlM2DApGA4EwoNccgHRstb2MJi2.png'
+const logoImageUrl = '/bilal-broast-logo-color.png'
 const loginCredentials = { id: 'admin@bilalbroast.test', password: 'changeme123' }
 
 const navItems = [
@@ -164,8 +166,8 @@ function buildEscPosLines(slip: ReceiptSlip) {
   return [
     centerText('BILAL BROAST', width),
     centerText('Health & Taste', width),
+    centerText(slip.category === 'Customer Bill' ? 'CUSTOMER BILL' : `${slip.category} SLIP`, width),
     '-'.repeat(width),
-    `Order #: ${slip.orderId}`.slice(0, width).padEnd(width, ' '),
     `Date: ${slip.date} ${slip.time}`.slice(0, width).padEnd(width, ' '),
     `Cashier: ${slip.cashier}`.slice(0, width).padEnd(width, ' '),
     `Server: ${slip.server}`.slice(0, width).padEnd(width, ' '),
@@ -199,6 +201,7 @@ function buildEscPosReceipt(slip: ReceiptSlip) {
 }
 
 function buildReceiptHtml(slip: ReceiptSlip, payment: string) {
+  const receiptTitle = slip.category === 'Customer Bill' ? 'Customer Bill' : `${slip.category} Slip`
   const rows = slip.items
     .map(
       (item) => `
@@ -352,13 +355,12 @@ function buildReceiptHtml(slip: ReceiptSlip, payment: string) {
       </head>
       <body>
         <div class="receipt">
-          <img class="brand-logo" src="${window.location.origin}/bilal-broast-logo.png" alt="Bilal Broast logo" />
+          <img class="brand-logo" src="${window.location.origin}${logoImageUrl}" alt="Bilal Broast logo" />
 
           <div class="line"></div>
 
           <div class="meta">
-            <p><strong>Invoice</strong></p>
-            <p>Order #: ${slip.orderId}</p>
+            <p><strong>${receiptTitle}</strong></p>
             <p>Date: ${slip.date} ${slip.time}</p>
             <p>Order Type: ${slip.orderType}</p>
             <p>Cashier: ${slip.cashier}</p>
@@ -602,7 +604,7 @@ export default function Page() {
   async function handleOrderDone() {
     if (isSubmittingOrder) return
     if (completed) {
-      if (categoryPrintQueue.length > 0) setCategoryPrintModalOpen(true)
+      if (receiptSlips.length > 0) setCategoryPrintModalOpen(true)
       return
     }
     if (cart.length === 0) return
@@ -666,20 +668,12 @@ export default function Page() {
         const subtotal = items.reduce((sum, item) => sum + item.amount, 0)
         return { ...baseReceipt, category, items, subtotal, gst: 0, total: subtotal }
       })
-      setReceiptSlips(nextReceipts)
+      const slipsToPrint = nextReceipts.length > 0 ? nextReceipts : [baseReceipt]
+      setReceiptSlips(slipsToPrint)
       setCompleted(true)
-
-      if (nextReceipts.length > 1) {
-        printWindow?.close()
-        setCategoryPrintQueue(nextReceipts)
-        setCategoryPrintModalOpen(true)
-      } else {
-        const printSuccessful = await printReceiptDocument(nextReceipts[0] || baseReceipt, payment, printWindow)
-        if (!printSuccessful) {
-          printWindow?.close()
-          setOrderError('Order saved, but the print window was blocked. Allow pop-ups for this POS, then use Print Slip.')
-        }
-      }
+      printWindow?.close()
+      setCategoryPrintQueue(slipsToPrint)
+      setCategoryPrintModalOpen(true)
     } catch (error) {
       printWindow?.close()
       setOrderError(error instanceof Error ? error.message : 'Unable to save the order. Please try again.')
@@ -698,7 +692,29 @@ export default function Page() {
       return
     }
     setCategoryPrintQueue((current) => current.filter((entry) => entry.category !== slip.category))
-    if (categoryPrintQueue.length === 1) setCategoryPrintModalOpen(false)
+  }
+
+  async function printCustomerBill() {
+    if (printingCategory) return
+    const items = receiptSlips.flatMap((slip) => slip.items)
+    if (items.length === 0) return
+
+    const subtotal = receiptSlips.reduce((sum, slip) => sum + slip.subtotal, 0)
+    const customerBill: ReceiptSlip = {
+      ...receiptSlips[0],
+      category: 'Customer Bill',
+      items,
+      subtotal,
+      gst: receiptSlips.reduce((sum, slip) => sum + slip.gst, 0),
+      total: receiptSlips.reduce((sum, slip) => sum + slip.total, 0),
+    }
+
+    setPrintingCategory('Customer Bill')
+    const started = await printReceiptDocument(customerBill, payment)
+    setPrintingCategory('')
+    if (!started) {
+      setOrderError('Could not start printing the customer bill. Allow pop-ups, then try again.')
+    }
   }
 
   function addToCart(product: Product) {
@@ -765,8 +781,8 @@ export default function Page() {
       <main className="grid min-h-screen place-items-center bg-[#f5f7f2] p-4 text-slate-900">
         <form onSubmit={handleLogin} className="w-full max-w-[400px] rounded-xl border border-slate-200 bg-white p-7 shadow-lg">
           <div className="mb-7 text-center">
-            <p className="text-sm font-black italic text-[#279b2e]">BILAL</p>
-            <h1 className="mt-1 text-2xl font-black">Broast POS</h1>
+            <Image src={logoImageUrl} alt="Bilal Broast" width={1337} height={884} className="mx-auto mb-2 h-auto w-48 object-contain" />
+            <h1 className="text-2xl font-black">Broast POS</h1>
             <p className="mt-2 text-sm text-slate-500">Sign in to continue</p>
           </div>
           <label className="mb-4 block text-sm font-semibold text-slate-700">
@@ -788,11 +804,7 @@ export default function Page() {
     <main className="dashboard-shell min-h-screen overflow-x-hidden bg-[#f5f7f2] text-slate-900">
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-[228px] flex-col bg-[#0b0d10] text-white lg:flex">
         <div className="flex h-[128px] items-center justify-center border-b border-white/5">
-          <div className="text-center leading-none">
-            <div className="text-[18px] font-black italic text-[#39b34a]">Bilal</div>
-            <div className="text-[31px] font-black">Burger</div>
-            <span className="text-[10px] font-bold tracking-[0.25em] text-[#39b34a]">RESTAURANT</span>
-          </div>
+          <Image src={logoImageUrl} alt="Bilal Broast" width={1337} height={884} className="h-auto w-[176px] object-contain" />
         </div>
 
         <nav className="flex flex-1 flex-col gap-2 px-4 py-8">
@@ -878,7 +890,7 @@ export default function Page() {
         </div>
       </div>
 
-      {categoryPrintModalOpen && categoryPrintQueue.length > 0 && (
+      {categoryPrintModalOpen && receiptSlips.length > 0 && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4" role="presentation">
           <section
             aria-labelledby="category-print-title"
@@ -889,7 +901,9 @@ export default function Page() {
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-900" id="category-print-title">Print category slips</h2>
-                <p className="mt-1 text-sm text-slate-600">Order {categoryPrintQueue[0].orderId} Â· {categoryPrintQueue.length} categories remaining</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Order {receiptSlips[0].orderId} Â· {categoryPrintQueue.length > 0 ? `${categoryPrintQueue.length} kitchen slips remaining` : 'All kitchen slips printed'}
+                </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <span className="rounded-md bg-emerald-50 px-2.5 py-1.5 text-sm font-semibold text-emerald-800">Saved</span>
@@ -925,6 +939,18 @@ export default function Page() {
                   </button>
                 </div>
               ))}
+            </div>
+
+            <div className="mt-5 flex justify-end">
+              <button
+                className="inline-flex items-center gap-2 rounded-md bg-[#0b0d10] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#22262b] disabled:cursor-wait disabled:opacity-60"
+                disabled={Boolean(printingCategory)}
+                onClick={() => void printCustomerBill()}
+                type="button"
+              >
+                <Printer className="size-4" />
+                {printingCategory === 'Customer Bill' ? 'Printing bill...' : 'Print Bill'}
+              </button>
             </div>
 
             {orderError && <p className="mt-4 text-sm font-medium text-red-700" role="alert">{orderError}</p>}
@@ -1214,7 +1240,7 @@ function ReceiptPreview({ slips, payment }: { slips: ReceiptSlip[]; payment: str
             className="receipt-slip mx-auto w-[50mm] max-w-full bg-white px-0 py-4 text-[#111] shadow-md print:shadow-none"
           >
             <img
-              src="/bilal-broast-logo.png"
+              src={logoImageUrl}
               alt="Bilal Broast logo"
               className="mx-auto mb-3 block w-[46mm] max-w-full max-h-[30mm] object-contain"
             />
@@ -1222,8 +1248,7 @@ function ReceiptPreview({ slips, payment }: { slips: ReceiptSlip[]; payment: str
             <div className="mb-3 h-px bg-black" />
 
             <div className="space-y-1 text-center text-sm font-semibold">
-              <div className="text-lg font-black">Invoice</div>
-              <div>Order #: {slip.orderId}</div>
+              <div className="text-lg font-black">{slip.category === 'Customer Bill' ? 'Customer Bill' : `${slip.category} Slip`}</div>
               <div>Date: {slip.date} {slip.time}</div>
               <div>Order Type: {slip.orderType}</div>
               <div>Cashier: {slip.cashier}</div>
